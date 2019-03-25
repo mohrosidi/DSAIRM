@@ -15,7 +15,33 @@ test_that("fit apps all run correctly",
             modelsettings$plotscale = 'none'
             modelsettings$simfunction = 'simulate_basicmodel_fit'
             result = run_model(modelsettings)
-            finaldatapoint = tail(result[[1]]$dat$yvals,1)
-            testthat::expect_equal(finaldatapoint, 1)
+            finaldatapoint = tail(result[[1]]$simres$data$outcome,1)
+            testthat::expect_equal(finaldatapoint, 0)
+
+            test=c(result,result)
+            expect_is( DSAIRM::generate_ggplot(test), "ggplot"  )
+
+
+            #test confint fit
+            modelsettings =  list(U = 10000, I = 0, V = 10, blow = 1e-6, bhigh = 1000)
+            modelsettings$iter = 10
+            modelsettings$nsample = 10
+            modelsettings$modeltype = "_fit_"
+            modelsettings$nplots = 1
+            modelsettings$simfunction = 'simulate_confint_fit'
+            result = run_model(modelsettings)
+            finalsimI = round(tail(result[[1]]$simres$ts$I,1))
+            testthat::expect_equal(finalsimI, 160)
+
+            #test model comparison fit
+            modelsettings =  list(U = 10000, I = 0, V = 10, X = 1)
+            modelsettings$iter = 10
+            modelsettings$fitmodel = 2
+            modelsettings$modeltype = "_fit_"
+            modelsettings$nplots = 1
+            modelsettings$simfunction = 'simulate_modelcomparison_fit'
+            result = run_model(modelsettings)
+            finalssr = round(result[[1]]$simres$SSR)
+            testthat::expect_equal(finalssr, 12)
 
 })

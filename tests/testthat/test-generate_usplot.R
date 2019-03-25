@@ -5,10 +5,6 @@ test_that("running US analysis app returns the proper plots",
 
             modelsettings = list()
 
-            modelsettings$Bmin = 1000
-            modelsettings$Bmax = 1500
-            modelsettings$Imin = 1
-            modelsettings$Imax = 10
             modelsettings$Bmaxmin = 1e4
             modelsettings$Bmaxmax = 1e6
             modelsettings$dBmin = 0.1

@@ -11,7 +11,8 @@ generate_ggplot(res)
 The length of the main list indicates the number of separate plots to make.
 Each list entry is itself a list, and corresponds to one plot and
 needs to contain the following information/elements: \cr
-1. A data frame list element called "dat" or "ts". If the data frame is "ts" it is assumed to be
+1. A list element called simres which contains results returned from the simulator function.
+One of the simres sublist entries must be a data frame called "dat" or "ts". If the data frame is "ts" it is assumed to be
 a time series and by default a line plot will be produced and labeled Time/Numbers.
 For plotting, the data needs to be in a format with one column called xvals, one column yvals,
 one column called varnames that contains names for different variables.

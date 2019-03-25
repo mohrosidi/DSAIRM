@@ -8,13 +8,13 @@ test_that("run_model correctly runs different models",
             modelsettings$simfunction = 'simulate_basicvirus_ode'
             result = run_model(modelsettings)
             #check that simulation ran until max time
-            testthat::expect_equal(max(result[[1]]$dat$xvals), tfinal)
+            testthat::expect_equal(max(result[[1]]$simres$ts$time), tfinal)
 
             modelsettings =  list(B = 10, I = 1, g = 1, Bmax = 1e6, dB = 0.1, k = 1e-07, r = 1e-3, dI = 1, tstart = 0, tfinal = 50, dt = 0.01, modeltype = "_discrete_", plotscale = 'y', nplots = 1)
             modelsettings$simfunction = 'simulate_basicbacteria_discrete'
             result = run_model(modelsettings)
-            #check that simulation returned specific value of susceptible at end
-            Ifinal = round(tail(result[[1]]$dat$yvals,1))
+            #check that simulation returned specific value of I
+            Ifinal = round(tail(result[[1]]$simres$ts$I,1))
             testthat::expect_equal(Ifinal, 13594)
 
 
@@ -22,7 +22,7 @@ test_that("run_model correctly runs different models",
             modelsettings$simfunction = 'simulate_basicvirus_stochastic'
             result = run_model(modelsettings)
             #check that simulation returned specific value of susceptible at end
-            Ufinal = min(dplyr::filter(result[[1]]$dat, varnames == "U")$yvals)
+            Ufinal = round(tail(result[[1]]$simres$ts$U,1))
             testthat::expect_equal(Ufinal, 58)
 
 

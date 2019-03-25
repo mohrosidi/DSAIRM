@@ -6,7 +6,8 @@
 #'    The length of the main list indicates the number of separate plots to make.
 #'    Each list entry is itself a list, and corresponds to one plot and
 #'    needs to contain the following information/elements: \cr
-#'    1. A data frame list element called "dat" or "ts". If the data frame is "ts" it is assumed to be
+#'    1. A list element called simres which contains results returned from the simulator function.
+#'    One of the simres sublist entries must be a data frame called "dat" or "ts". If the data frame is "ts" it is assumed to be
 #'    a time series and by default a line plot will be produced and labeled Time/Numbers.
 #'    For plotting, the data needs to be in a format with one column called xvals, one column yvals,
 #'    one column called varnames that contains names for different variables.
@@ -52,22 +53,28 @@ generate_ggplot <- function(res)
 
     for (n in 1:nplots) #loop to create each plot
     {
-      resnow = res[[n]]
+      resnow = res[[n]] #list entry for each plot
+
+      simres = resnow$simres #simulation results for given list entry/plot
+
+      plottype <- if(is.null(resnow$plottype)) {'Lineplot'} else  {resnow$plottype} #if nothing is provided, we assume a line plot. That could lead to silly plots.
+
 
       #if a data frame called 'ts' exists, assume that this one is the data to be plotted
       #otherwise use the data frame called 'dat'
       #one of the 2 must exist, otherwise the function will not work
-      if (!is.null(resnow$ts))
+      if (!is.null(simres$ts))
       {
-        rawdat = resnow$ts #if a timeseries is sent in and no x- and y-labels provided, we set default 'Time' and 'Numbers'
+        rawdat = simres$ts #if a timeseries is sent in and no x- and y-labels provided, we set default 'Time' and 'Numbers'
         if (is.null(resnow$ylab)) {resnow$ylab = 'Numbers'}
         if (is.null(resnow$xlab)) {resnow$xlab = 'Time'}
+
       }
       else {
-        rawdat = resnow$dat
+        rawdat = simres$dat
       }
 
-      plottype <- if(is.null(resnow$plottype)) {'Lineplot'} else  {resnow$plottype} #if nothing is provided, we assume a line plot. That could lead to silly plots.
+      browser()
 
       #if the first column is called 'Time' (as returned from several of the simulators)
       #rename to xvals for consistency and so the code below will work
@@ -88,9 +95,37 @@ generate_ggplot <- function(res)
 		dat$id <- NULL
       }
 
+
+      #convert data to long format
+      #dat = purrr::map(simresult, tidyr::gather,  key = 'varnames', value = "yvals", -time)
+      #rename time to xvals
+      #dat = purrr::map(dat, dplyr::rename, xvals = time)
+      #convert list into single data frame, add IDvar variable
+      #dat = dplyr::bind_rows(dat, .id = "IDvar")
+      #assign IDvar combination of number and variable name - the way the plotting functions need it
+      #datall = dplyr::mutate(dat, IDvar = paste0(varnames,IDvar))
+
+
       #code variable names as factor and level them so they show up right in plot - factor is needed for plotting and text
       mylevels = unique(dat$varnames)
       dat$varnames = factor(dat$varnames, levels = mylevels)
+
+      #for mixed plot, simres needs to contain a list entry called ts which is a data frame of the time-series for the curves and a list entry called data which contains the data
+      #this will be reformatted and converted into one ggplot-friendly data frame here
+      if (plottype == 'Mixedplot')
+      {
+        dat$style = 'line'
+        #next, add data that's being fit to the data frame
+        fitdata  = simres$data
+        colnames(fitdata) = c('xvals','yvals')
+        fitdata$varnames = 'Data'
+        fitdata$yvals = 10^fitdata$yvals #data is in log units, for plotting transform it
+        fitdata$style = 'point'
+        dat = cbind(dat,fitdata)
+      }
+
+
+
 
       #see if user/calling function supplied x- and y-axis transformation information
       xscaletrans <- ifelse(is.null(resnow$xscale), 'identity',resnow$xscale)
@@ -185,7 +220,7 @@ generate_ggplot <- function(res)
         p5b = p5a + ggplot2::theme(legend.position = legendlocation)
         p5c = p5b + ggplot2::scale_linetype_discrete(name = legendtitle) + ggplot2::scale_shape_discrete(name = legendtitle)
         p5d = p5c + ggplot2::scale_colour_discrete(name = legendtitle)
-        p6 = p5d + guides(fill=guide_legend(title.position="top", nrow=3, byrow=TRUE))
+        p6 = p5d + ggplot2::guides(fill=ggplot2::guide_legend(title.position="top", nrow=3, byrow=TRUE))
       }
       else
       {

@@ -32,22 +32,27 @@ generate_text <- function(res)
     for (n in 1:nplots)
     {
 
+
       resnow = res[[n]]
 
+
+      simres = resnow$simres #simulation results for given list entry/plot
 
       #if a data frame called 'ts' exists, assume that this one is the data to be plotted
       #otherwise use the data frame called 'dat'
       #one of the 2 must exist, otherwise the function will not work
-      if (!is.null(resnow$ts))
+      if (!is.null(simres$ts))
       {
-        rawdat = resnow$ts
+        rawdat = simres$ts #if a timeseries is sent in and no x- and y-labels provided, we set default 'Time' and 'Numbers'
+        if (is.null(resnow$ylab)) {resnow$ylab = 'Numbers'}
+        if (is.null(resnow$xlab)) {resnow$xlab = 'Time'}
+
       }
       else {
-        rawdat = resnow$dat
+        rawdat = simres$dat
       }
 
-      #if nothing is provided, we assume a line plot. That could lead to silly text returns.
-      plottype <- if(is.null(resnow$plottype)) {'Lineplot'} else  {resnow$plottype}
+      plottype <- if(is.null(resnow$plottype)) {'Lineplot'} else  {resnow$plottype} #if nothing is provided, we assume a line plot. That could lead to silly plots.
 
       #if the first column is called 'Time' (as returned from several of the simulators)
       #rename to xvals for consistency and so the code below will work
