@@ -82,6 +82,18 @@ run_model <- function(modelsettings) {
     modelsettings$currentmodel = simfunction[grep('_discrete',simfunction)] #list of model functions, get the ode function
     xx = rep(list(modelsettings),times = 1) #don't really replicate list, but get it into right structure
   }
+  if (grepl('_odeanddiscrete_',modelsettings$modeltype))
+  {
+    modelsettings$currentmodel = simfunction[grep('_discrete',simfunction)] #list of model functions, get the ode function
+    xx1 = rep(list(modelsettings),times = 1) #don't really replicate list, but get it into right structure
+    #ODE part
+    modelsettings$currentmodel = simfunction[grep('_ode',simfunction)] #list of model functions, get the ode function
+    xx2 = rep(list(modelsettings),times = 1) #don't really replicate list, but get it into right structure
+    xx = c(xx1,xx2)
+  }
+
+
+
   if (grepl('_fit_',modelsettings$modeltype))
   {
     modelsettings$currentmodel = simfunction[grep('_fit',simfunction)]
@@ -168,10 +180,88 @@ run_model <- function(modelsettings) {
   if (grepl('_fit_',modelsettings$modeltype))
   {
 
+
+    #combine model simulation and data into single long dataframe to allow plotting
+
+
+
+    simdat = tidyr::gather(simresult$ts, -time, value = "yvals", key = "varnames")
+    simdat = dplyr::rename(simdat, xvals = time)
+    simdat$style = 'line'
+    #next, add data that's being fit to data frame
+    #data is in log units, for plotting transform it
+    fitdat  = data.frame(xvals = simresult$data$xvals, varnames = "Data", yvals = 10^simresult$data$outcome, style = 'point')
+
+    result[[1]]$simres = simresult #pass everything returned from simulator function to calling function
+    result[[1]]$dat =  rbind(simdat,fitdat) #add processed data frame
+
+
     #Meta-information for each plot
     result[[1]]$plottype = "Mixedplot"
     result[[1]]$maketext = FALSE
     result[[1]]$showtext = NULL
+
+    ####################################################
+    #different choices for text display for different fit models
+    if (grepl('basicmodel_fit',simfunction))
+    {
+      txt1 <- paste('Best fit values for parameters',paste(names(result[[1]]$simres$bestpars), collapse = '/'), ' are ', paste(format(result[[1]]$simres$bestpars,  digits =2, nsmall = 2), collapse = '/' ))
+      txt2 <- paste('Final SSR is ', format(simresult$SSR, digits =2, nsmall = 2))
+      result[[1]]$finaltext = paste(txt1,txt2, sep = "<br/>")
+    }
+    if (grepl('confint_fit',simfunction))
+    {
+      txt1 <- paste('Best fit values for parameters', paste(names(simresult$bestpars), collapse = '/'), ' are ', paste(format(simresult$bestpars,  digits =2, nsmall = 2), collapse = '/' ))
+      txt2 <- paste('Lower and upper bounds for parameter', paste(names(simresult$bestpars[1]), collapse = '/'), ' are ', paste(format(simresult$confint[1:2],  digits =2, nsmall = 2), collapse = '/' ))
+      txt3 <- paste('Lower and upper bounds for parameter', paste(names(simresult$bestpars[2]), collapse = '/'), ' are ', paste(format(simresult$confint[3:4],  digits =2, nsmall = 2), collapse = '/' ))
+      txt4 <- paste('SSR is ', format(simresult$SSR, digits =2, nsmall = 2))
+      result[[1]]$finaltext = paste(txt1,txt2,txt3,txt4, sep = "<br/>")
+    }
+    #best fit results to be displayed as text
+    #this is for model comparison fit  routine
+    if (grepl('modelcomparison_fit',simfunction))
+    {
+      txt1 <- paste('Best fit values for model', modelsettings$fitmodel, 'parameters',paste(names(result[[1]]$simres$bestpars), collapse = '/'), ' are ', paste(format(result[[1]]$simres$bestpars,  digits =2, nsmall = 2), collapse = '/' ))
+      txt2 <- paste('SSR and AICc are ',format(simresult$SSR, digits =2, nsmall = 2),' and ',format(simresult$AICc, digits =2, nsmall = 2))
+      result[[1]]$finaltext = paste(txt1,txt2, sep = "<br/>")
+    }
+
+  }
+
+  ##################################
+  #US analysis code block
+  ##################################
+  if (grepl('_usanalysis_',modelsettings$modeltype))
+  {
+
+    for (ct in 1:modelsettings$nplots) #for specified parameter, loop over outcomes
+    {
+      #data frame for each plot
+      #browser()
+      xvals = simresult$dat[,modelsettings$samplepar] #get parameter under consideration
+      xvalname = modelsettings$samplepar
+      yvals = simresult$dat[,ct] #first 3 elements are outcomes
+      yvalname = colnames(simresult$dat)[ct]
+      dat = data.frame(xvals = xvals, yvals = yvals, varnames = yvalname)
+      result[[ct]]$simres = list(dat = dat)
+
+      #meta-data for each plot
+      result[[ct]]$plottype = modelsettings$plottype
+      result[[ct]]$xlab = xvalname
+      result[[ct]]$ylab = yvalname
+      result[[ct]]$makelegend = FALSE #no legend for these plots
+
+      result[[ct]]$xscale = 'identity'
+      result[[ct]]$yscale = 'identity'
+      if (plotscale == 'x' | plotscale == 'both') { result[[ct]]$xscale = 'log10'}
+      if (plotscale == 'y' | plotscale == 'both') { result[[ct]]$yscale = 'log10'}
+
+      #the following are for text display for each plot
+      result[[ct]]$maketext = TRUE #if true we want the generate_text function to process data and generate text, if 0 no result processing will occur insinde generate_text
+      result[[ct]]$finaltext = paste("System might not have reached steady state", nrow(simresult$dat) - sum(simresult$dat$steady), "times")
+  } #loop over plots
+
+
   }
 
   #return result structure to calling function (app.R)

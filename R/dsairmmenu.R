@@ -24,7 +24,7 @@ dsairmmenu <- function() {
 #needed to prevent NOTE messages on CRAN checks
 #most of those are from the ggplot commands in the generate_ functions,
 #the last one is from the subset function in the fit functions
-utils::globalVariables(c("xvals", "yvals", "varnames","IDvar","style","Condition"))
+utils::globalVariables(c("xvals", "yvals", "time", "varnames", "IDvar", "style", "Condition"))
 
 
 .onAttach <- function(libname, pkgname){

@@ -195,10 +195,10 @@ simulate_modelcomparison_fit <- function(U = 1e5, I = 0, V = 1, X = 1, dI = 1, d
   {
     odeout <- try(deSolve::ode(y = Y0, times = xvals, func = model2ode, parms=modelpars, atol=1e-8, rtol=1e-8));
   }
-  colnames(odeout) = c('xvals','U','I','V','X')
+
 
   #compute sum of square residuals (SSR) for initial guess and final solution
-  modelpred = odeout[match(mydata$xvals,odeout[,"xvals"]),"V"];
+  modelpred = odeout[match(mydata$xvals,odeout[,"time"]),"V"];
 
   logvirus=c(log10(pmax(1e-10,modelpred)));
   ssrfinal=(sum((logvirus-mydata$outcome)^2))

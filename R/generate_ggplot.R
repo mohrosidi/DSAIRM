@@ -59,22 +59,27 @@ generate_ggplot <- function(res)
 
       plottype <- if(is.null(resnow$plottype)) {'Lineplot'} else  {resnow$plottype} #if nothing is provided, we assume a line plot. That could lead to silly plots.
 
-
-      #if a data frame called 'ts' exists, assume that this one is the data to be plotted
-      #otherwise use the data frame called 'dat'
-      #one of the 2 must exist, otherwise the function will not work
-      if (!is.null(simres$ts))
+      #if the main list has an entry called dat, it is assumed to contain the data for plotting and will be used
+      if (!is.null(resnow$dat))
       {
-        rawdat = simres$ts #if a timeseries is sent in and no x- and y-labels provided, we set default 'Time' and 'Numbers'
-        if (is.null(resnow$ylab)) {resnow$ylab = 'Numbers'}
-        if (is.null(resnow$xlab)) {resnow$xlab = 'Time'}
-
+        rawdat = resnow$dat
       }
-      else {
+      #otherwise, data of the correct type is looked for in the simres object returned from each simulator function
+      else
+      {
+        #if a data frame called 'ts' exists, assume that this one is the data to be plotted
+        #otherwise use the data frame called 'dat'
+        #one of the 2 must exist, otherwise the function will not work
+        if (!is.null(simres$ts))
+        {
+          rawdat = simres$ts #if a timeseries is sent in and no x- and y-labels provided, we set default 'Time' and 'Numbers'
+          if (is.null(resnow$ylab)) {resnow$ylab = 'Numbers'}
+          if (is.null(resnow$xlab)) {resnow$xlab = 'Time'}
+        }
+        else {
         rawdat = simres$dat
+        }
       }
-
-      browser()
 
       #if the first column is called 'Time' (as returned from several of the simulators)
       #rename to xvals for consistency and so the code below will work
@@ -92,40 +97,12 @@ generate_ggplot <- function(res)
       {
         #using basic reshape function to reformat data
         dat = stats::reshape(rawdat, varying = colnames(rawdat)[-1], v.names = 'yvals', timevar = "varnames", times = colnames(rawdat)[-1], direction = 'long', new.row.names = NULL)
-		dat$id <- NULL
+		    dat$id <- NULL
       }
-
-
-      #convert data to long format
-      #dat = purrr::map(simresult, tidyr::gather,  key = 'varnames', value = "yvals", -time)
-      #rename time to xvals
-      #dat = purrr::map(dat, dplyr::rename, xvals = time)
-      #convert list into single data frame, add IDvar variable
-      #dat = dplyr::bind_rows(dat, .id = "IDvar")
-      #assign IDvar combination of number and variable name - the way the plotting functions need it
-      #datall = dplyr::mutate(dat, IDvar = paste0(varnames,IDvar))
-
 
       #code variable names as factor and level them so they show up right in plot - factor is needed for plotting and text
       mylevels = unique(dat$varnames)
       dat$varnames = factor(dat$varnames, levels = mylevels)
-
-      #for mixed plot, simres needs to contain a list entry called ts which is a data frame of the time-series for the curves and a list entry called data which contains the data
-      #this will be reformatted and converted into one ggplot-friendly data frame here
-      if (plottype == 'Mixedplot')
-      {
-        dat$style = 'line'
-        #next, add data that's being fit to the data frame
-        fitdata  = simres$data
-        colnames(fitdata) = c('xvals','yvals')
-        fitdata$varnames = 'Data'
-        fitdata$yvals = 10^fitdata$yvals #data is in log units, for plotting transform it
-        fitdata$style = 'point'
-        dat = cbind(dat,fitdata)
-      }
-
-
-
 
       #see if user/calling function supplied x- and y-axis transformation information
       xscaletrans <- ifelse(is.null(resnow$xscale), 'identity',resnow$xscale)

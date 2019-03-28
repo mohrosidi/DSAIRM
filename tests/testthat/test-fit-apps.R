@@ -14,12 +14,12 @@ test_that("fit apps all run correctly",
             modelsettings$nplots = 1
             modelsettings$plotscale = 'none'
             modelsettings$simfunction = 'simulate_basicmodel_fit'
+            modelsettings$plottype = 'Mixedplot'
             result = run_model(modelsettings)
             finaldatapoint = tail(result[[1]]$simres$data$outcome,1)
             testthat::expect_equal(finaldatapoint, 0)
 
-            test=c(result,result)
-            expect_is( DSAIRM::generate_ggplot(test), "ggplot"  )
+            expect_is( DSAIRM::generate_ggplot(result), "ggplot"  )
 
 
             #test confint fit
