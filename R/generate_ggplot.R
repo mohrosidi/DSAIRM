@@ -55,8 +55,6 @@ generate_ggplot <- function(res)
     {
       resnow = res[[n]] #list entry for each plot
 
-      simres = resnow$simres #simulation results for given list entry/plot
-
       plottype <- if(is.null(resnow$plottype)) {'Lineplot'} else  {resnow$plottype} #if nothing is provided, we assume a line plot. That could lead to silly plots.
 
       #if the main list has an entry called dat, it is assumed to contain the data for plotting and will be used
@@ -67,6 +65,7 @@ generate_ggplot <- function(res)
       #otherwise, data of the correct type is looked for in the simres object returned from each simulator function
       else
       {
+        simres = resnow$simres #simulation results for given list entry/plot
         #if a data frame called 'ts' exists, assume that this one is the data to be plotted
         #otherwise use the data frame called 'dat'
         #one of the 2 must exist, otherwise the function will not work
@@ -80,6 +79,8 @@ generate_ggplot <- function(res)
         rawdat = simres$dat
         }
       }
+
+      browser()
 
       #if the first column is called 'Time' (as returned from several of the simulators)
       #rename to xvals for consistency and so the code below will work

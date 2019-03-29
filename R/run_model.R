@@ -43,54 +43,112 @@ run_model <- function(modelsettings) {
     return(simresult)
   }
 
-
   simfunction = modelsettings$simfunction
 
   ##################################
   #dynamical model execution
   ##################################
-  if (grepl('_stochastic_',modelsettings$modeltype))
+  if (sum(c('_modelexploration_','_fit_','_usanalysis_') %in% modelsettings$modeltype) == 0)
   {
-    #replicate modelsettings as list based on number of reps for stochastic
-    modelsettings$currentmodel = simfunction[grep('_stochastic',simfunction)] #list of model functions, get the ode function
-    allmodset=rep(list(modelsettings),times = modelsettings$nreps)
-    rngvec = seq(modelsettings$rngseed,modelsettings$rngseed+modelsettings$nreps-1)
-    #give the rngseed entry in each list a consecutive value
-    xx = purrr::map2(allmodset, rngvec, ~replace(.x, "rngseed", .y))
-  }
-  if (grepl('_odeandstochastic_',modelsettings$modeltype))
+    if (grepl('_stochastic_',modelsettings$modeltype))
+    {
+      #replicate modelsettings as list based on number of reps for stochastic
+      modelsettings$currentmodel = simfunction[grep('_stochastic',simfunction)] #list of model functions, get the ode function
+      allmodset=rep(list(modelsettings),times = modelsettings$nreps)
+      rngvec = seq(modelsettings$rngseed,modelsettings$rngseed+modelsettings$nreps-1)
+      #give the rngseed entry in each list a consecutive value
+      xx = purrr::map2(allmodset, rngvec, ~replace(.x, "rngseed", .y))
+    }
+    if (grepl('_odeandstochastic_',modelsettings$modeltype))
+    {
+      #stochastic part
+      #replicate modelsettings as list based on number of reps for stochastic
+      modelsettings$currentmodel = simfunction[grep('_stochastic',simfunction)] #list of model functions, get the ode function
+      allmodset=rep(list(modelsettings),times = modelsettings$nreps)
+      rngvec = seq(modelsettings$rngseed,modelsettings$rngseed+modelsettings$nreps-1)
+      #give the rngseed entry in each list a consecutive value
+      xx1 = purrr::map2(allmodset, rngvec, ~replace(.x, "rngseed", .y))
+      #ODE part
+      modelsettings$currentmodel = simfunction[grep('_ode',simfunction)] #list of model functions, get the ode function
+      xx2 = rep(list(modelsettings),times = 1) #don't really replicate list, but get it into right structure
+      xx = c(xx1,xx2)
+    }
+    if (grepl('_ode_',modelsettings$modeltype))
+    {
+      modelsettings$currentmodel = simfunction[grep('_ode',simfunction)] #list of model functions, get the ode function
+      xx = rep(list(modelsettings),times = 1) #don't really replicate list, but get it into right structure
+    }
+    if (grepl('_discrete_',modelsettings$modeltype))
+    {
+      modelsettings$currentmodel = simfunction[grep('_discrete',simfunction)] #list of model functions, get the ode function
+      xx = rep(list(modelsettings),times = 1) #don't really replicate list, but get it into right structure
+    }
+    if (grepl('_odeanddiscrete_',modelsettings$modeltype))
+    {
+      modelsettings$currentmodel = simfunction[grep('_discrete',simfunction)] #list of model functions, get the ode function
+      modelsettings$currenttype = 'discrete'
+      xx1 = rep(list(modelsettings),times = 1) #don't really replicate list, but get it into right structure
+      #ODE part
+      modelsettings$currentmodel = simfunction[grep('_ode',simfunction)] #list of model functions, get the ode function
+      modelsettings$currenttype = 'ode'
+      xx2 = rep(list(modelsettings),times = 1) #don't really replicate list, but get it into right structure
+      xx = c(xx1,xx2)
+    }
+    #run all simulations for each modelsetting, store in list simresult
+    #since the simulation is returned as list, extract data frame only
+    simresult <- purrr::map(xx,runsimulation)
+    simresult <- unlist(simresult, recursive = FALSE, use.names = FALSE)
+    if (class(simresult)!="list")
+    {
+      result <- 'Model run failed. Maybe unreasonable parameter values?'
+      return(result)
+    }
+
+    #convert data to long format
+    dat = purrr::map(simresult, tidyr::gather,  key = 'varnames', value = "yvals", -time)
+    #add type of simulation to list if it exists
+    dat = purrr::map2(dat, xx, ~dplyr::mutate(.x, type = .y$currenttype))
+    #rename time to xvals
+    dat = purrr::map(dat, dplyr::rename, xvals = time)
+    #convert list into single data frame, add IDvar variable
+    dat = dplyr::bind_rows(dat, .id = "IDvar")
+    #assign IDvar combination of number and variable name - the way the plotting functions need it
+    datall = dplyr::mutate(dat, IDvar = paste0(varnames,IDvar))
+
+    #save all results to a list for processing plots and text
+    listlength = modelsettings$nplots
+    #here we do all simulations in the same figure
+    result = vector("list", listlength) #create empty list of right size for results
+
+    result[[1]]$dat = datall
+    ##################################
+    #default for text display, used by most basic simulation models
+    #can/will be potentially overwritten below for specific types of models
+    ##################################
+
+    result[[1]]$maketext = TRUE #indicate if we want the generate_text function to process data and generate text
+    result[[1]]$showtext = NULL #text can be added here which will be passed through to generate_text and displayed for EACH plot
+    result[[1]]$finaltext = 'Numbers are rounded to 2 significant digits.' #text can be added here which will be passed through to generate_text and displayed once
+
+    #Meta-information for each plot
+    result[[1]]$plottype = "Lineplot"
+    result[[1]]$xlab = "Time"
+    result[[1]]$ylab = "Numbers"
+    result[[1]]$legend = "Compartments"
+
+    #set x or y axis to logarithmic if indicated
+    plotscale = ifelse(is.null(modelsettings$plotscale), "none", modelsettings$plotscale)
+    result[[1]]$xscale = ifelse( (plotscale == 'x' | plotscale == 'both'),  'log10', 'identity' )
+    result[[1]]$yscale = ifelse( (plotscale == 'y' | plotscale == 'both'),  'log10',  'identity' )
+
+    return(result)
+
+  } #end dynamic model block
+
+
+  #for non-dynamicl models
+  if (sum(c('_modelexploration_','_fit_','_usanalysis_') %in% modelsettings$modeltype) == 0)
   {
-    #stochastic part
-    #replicate modelsettings as list based on number of reps for stochastic
-    modelsettings$currentmodel = simfunction[grep('_stochastic',simfunction)] #list of model functions, get the ode function
-    allmodset=rep(list(modelsettings),times = modelsettings$nreps)
-    rngvec = seq(modelsettings$rngseed,modelsettings$rngseed+modelsettings$nreps-1)
-    #give the rngseed entry in each list a consecutive value
-    xx1 = purrr::map2(allmodset, rngvec, ~replace(.x, "rngseed", .y))
-    #ODE part
-    modelsettings$currentmodel = simfunction[grep('_ode',simfunction)] #list of model functions, get the ode function
-    xx2 = rep(list(modelsettings),times = 1) #don't really replicate list, but get it into right structure
-    xx = c(xx1,xx2)
-  }
-  if (grepl('_ode_',modelsettings$modeltype))
-  {
-    modelsettings$currentmodel = simfunction[grep('_ode',simfunction)] #list of model functions, get the ode function
-    xx = rep(list(modelsettings),times = 1) #don't really replicate list, but get it into right structure
-  }
-  if (grepl('_discrete_',modelsettings$modeltype))
-  {
-    modelsettings$currentmodel = simfunction[grep('_discrete',simfunction)] #list of model functions, get the ode function
-    xx = rep(list(modelsettings),times = 1) #don't really replicate list, but get it into right structure
-  }
-  if (grepl('_odeanddiscrete_',modelsettings$modeltype))
-  {
-    modelsettings$currentmodel = simfunction[grep('_discrete',simfunction)] #list of model functions, get the ode function
-    xx1 = rep(list(modelsettings),times = 1) #don't really replicate list, but get it into right structure
-    #ODE part
-    modelsettings$currentmodel = simfunction[grep('_ode',simfunction)] #list of model functions, get the ode function
-    xx2 = rep(list(modelsettings),times = 1) #don't really replicate list, but get it into right structure
-    xx = c(xx1,xx2)
-  }
 
 
 
@@ -113,48 +171,20 @@ run_model <- function(modelsettings) {
   #run all simulations for each modelsetting, store in list simresult
   #since the simulation is returned as list, extract data frame only
   simresult <- purrr::map(xx,runsimulation)
-  simresult <- unlist(simresult, recursive = FALSE, use.names = TRUE)
+  simresult <- unlist(simresult, recursive = FALSE, use.names = FALSE)
   if (class(simresult)!="list")
   {
     result <- 'Model run failed. Maybe unreasonable parameter values?'
     return(result)
   }
 
-
-  ##################################
-  #take data from all simulations and turn into list structure format
-  #needed to generate plots and text
-  #this applies to simulators that run dynamical models
-  #other simulation functions need output processed differently and will overwrite some of these settings
-  #each other simulator function has its own code block below
-  ##################################
-
   #save all results to a list for processing plots and text
   listlength = modelsettings$nplots
   #here we do all simulations in the same figure
   result = vector("list", listlength) #create empty list of right size for results
 
-  result[[1]]$simres = simresult
+  result[[1]]$dat = simresult
 
-  ##################################
-  #default for text display, used by most basic simulation models
-  #can/will be potentially overwritten below for specific types of models
-  ##################################
-
-  result[[1]]$maketext = TRUE #indicate if we want the generate_text function to process data and generate text
-  result[[1]]$showtext = NULL #text can be added here which will be passed through to generate_text and displayed for EACH plot
-  result[[1]]$finaltext = 'Numbers are rounded to 2 significant digits.' #text can be added here which will be passed through to generate_text and displayed once
-
-  #Meta-information for each plot
-  result[[1]]$plottype = "Lineplot"
-  result[[1]]$xlab = "Time"
-  result[[1]]$ylab = "Numbers"
-  result[[1]]$legend = "Compartments"
-
-  #set x or y axis to logarithmic if indicated
-  plotscale = ifelse(is.null(modelsettings$plotscale), "none", modelsettings$plotscale)
-  result[[1]]$xscale = ifelse( (plotscale == 'x' | plotscale == 'both'),  'log10', 'identity' )
-  result[[1]]$yscale = ifelse( (plotscale == 'y' | plotscale == 'both'),  'log10',  'identity' )
 
   ##################################
   #model exploration code block
@@ -180,10 +210,7 @@ run_model <- function(modelsettings) {
   if (grepl('_fit_',modelsettings$modeltype))
   {
 
-
     #combine model simulation and data into single long dataframe to allow plotting
-
-
 
     simdat = tidyr::gather(simresult$ts, -time, value = "yvals", key = "varnames")
     simdat = dplyr::rename(simdat, xvals = time)
@@ -237,7 +264,6 @@ run_model <- function(modelsettings) {
     for (ct in 1:modelsettings$nplots) #for specified parameter, loop over outcomes
     {
       #data frame for each plot
-      #browser()
       xvals = simresult$dat[,modelsettings$samplepar] #get parameter under consideration
       xvalname = modelsettings$samplepar
       yvals = simresult$dat[,ct] #first 3 elements are outcomes
@@ -259,10 +285,9 @@ run_model <- function(modelsettings) {
       #the following are for text display for each plot
       result[[ct]]$maketext = TRUE #if true we want the generate_text function to process data and generate text, if 0 no result processing will occur insinde generate_text
       result[[ct]]$finaltext = paste("System might not have reached steady state", nrow(simresult$dat) - sum(simresult$dat$steady), "times")
-  } #loop over plots
-
-
-  }
+    } #loop over plots
+  } #US analysis block
+} #non-dynamic block
 
   #return result structure to calling function (app.R)
   #results are a list, with sublists for each plot, each sublist itself is a list containing data and meta-information
